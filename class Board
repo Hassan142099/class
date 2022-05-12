@@ -1,0 +1,173 @@
+class Board:
+    parent = None
+    state = None
+    operator = None
+    depth = 0
+    zero = None
+    cost = 0
+
+    def _init_(self, state, parent=None, operator=None, depth=0):
+        self.parent = parent
+        self.state = np.array(state)
+        self.operator = operator
+        self.depth = depth
+        self.zero = self.find_0()
+        self.cost = self.depth + self.manhattan()
+
+    def _lt_(self, other):
+        if self.cost != other.cost:
+            return self.cost < other.cost
+        else:
+            op_pr = {'Up': 0, 'Down': 1, 'Left': 2, 'Right': 3}
+            return op_pr[self.operator] < op_pr[other.operator]
+
+    def _str_(self):
+        return str(self.state[:3]) + '\n' \
+               + str(self.state[3:6]) + '\n' \
+               + str(self.state[6:]) + ' ' + str(self.depth) + str(self.operator) + '\n'
+
+    def goal_test(self):
+        if np.array_equal(self.state, np.arange(9)):
+            return True
+        else:
+            return False
+
+    def find_0(self):
+        for i in range(9):
+            if self.state[i] == 0:
+                return i
+
+    def manhattan(self):
+        state = self.index(self.state)
+        goal = self.index(np.arange(9))
+        return sum((abs(state // 3 - goal // 3) + abs(state % 3 - goal % 3))[1:])
+
+    @staticmethod
+    def index(state):
+        index = np.array(range(9))
+        for x, y in enumerate(state):
+            index[y] = x
+        return index
+
+    def swap(self, i, j):
+        new_state = np.array(self.state)
+        new_state[i], new_state[j] = new_state[j], new_state[i]
+        return new_state
+
+    def up(self):
+        if self.zero > 2:
+            return Board(self.swap(self.zero, self.zero - 3), self, 'Up', self.depth + 1)
+        else:
+            return None
+
+    def down(self):
+        if self.zero < 6:
+            return Board(self.swap(self.zero, self.zero + 3), self, 'Down', self.depth + 1)
+        else:
+            return None
+
+    def left(self):
+        if self.zero % 3 != 0:
+            return Board(self.swap(self.zero, self.zero - 1), self, 'Left', self.depth + 1)
+        else:
+            return None
+
+    def right(self):
+        if (self.zero + 1) % 3 != 0:
+            return Board(self.swap(self.zero, self.zero + 1), self, 'Right', self.depth + 1)
+        else:
+            return None
+
+    def neighbors(self):
+        neighbors = [self.up(), self.down(), self.left(), self.right()]
+        return list(filter(None, neighbors))
+
+    _repr_ = _str_
+bfs.py
+
+from collections import deque
+
+from solver import Solver
+
+
+class BFS(Solver):
+    def _init_(self, initial_state):
+        super(BFS, self)._init_(initial_state)
+        self.frontier = deque()
+
+    def solve(self):
+        self.frontier.append(self.initial_state)
+        while self.frontier:
+            board = self.frontier.popleft()
+            self.explored_nodes.add(tuple(board.state))
+            if board.goal_test():
+                self.set_solution(board)
+                break
+            for neighbor in board.neighbors():
+                if tuple(neighbor.state) not in self.explored_nodes:
+                    self.frontier.append(neighbor)
+                    self.explored_nodes.add(tuple(neighbor.state))
+                    self.max_depth = max(self.max_depth, neighbor.depth)
+        return
+dfs.py
+
+from solver import Solver
+
+
+class DFS(Solver):
+    def _init_(self, initial_state):
+        super(DFS, self)._init_(initial_state)
+        self.frontier = []
+
+    def solve(self):
+        self.frontier.append(self.initial_state)
+        while self.frontier:
+            board = self.frontier.pop()
+            self.explored_nodes.add(tuple(board.state))
+            if board.goal_test():
+                self.set_solution(board)
+                break
+            for neighbor in board.neighbors()[::-1]:
+                if tuple(neighbor.state) not in self.explored_nodes:
+                    self.frontier.append(neighbor)
+                    self.explored_nodes.add(tuple(neighbor.state))
+                    self.max_depth = max(self.max_depth, neighbor.depth)
+        return
+iddfs.py
+
+import itertools
+
+from solver import Solver
+
+
+class IDDFS(Solver):
+    def _init_(self, initial_state):
+        super(IDDFS, self)._init_(initial_state)
+        self.frontier = []
+
+    def dls(self, limit):
+        self.frontier.append(self.initial_state)
+        while self.frontier:
+            board = self.frontier.pop()
+            self.explored_nodes.add(tuple(board.state))
+            if board.goal_test():
+                self.set_solution(board)
+                return self.solution
+            if board.depth < limit:
+                for neighbor in board.neighbors()[::-1]:
+                    if tuple(neighbor.state) not in self.explored_nodes:
+                        self.frontier.append(neighbor)
+                        self.explored_nodes.add(tuple(neighbor.state))
+                        self.max_depth = max(self.max_depth, neighbor.depth)
+        return None
+
+    def solve(self):
+        for i in itertools.count():
+            self.frontier = []
+            self.explored_nodes = set()
+            self.max_depth = 0
+            self.frontier.append(self.initial_state)
+            sol = self.dls(i)
+            if sol is not None:
+                break
+        return
